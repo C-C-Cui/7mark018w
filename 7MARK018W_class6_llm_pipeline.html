@@ -1,0 +1,913 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LLM Pipeline · 7MARK018W</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,400;0,500;1,400&family=Playfair+Display:wght@700;900&display=swap" rel="stylesheet">
+<style>
+/* ── Reset & tokens ──────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg:        #f5f3ee;
+  --surface:   #ffffff;
+  --ink:       #1a1814;
+  --ink2:      #5a5650;
+  --rule:      #dedad4;
+  --c1:        #1a4f8a;   /* tokenisation  – deep navy  */
+  --c1l:       #e8f0f9;
+  --c2:        #7b3fa0;   /* embedding     – plum       */
+  --c2l:       #f4edfb;
+  --c3:        #1a7a55;   /* attention     – forest     */
+  --c3l:       #e8f7f1;
+  --c4:        #b84c00;   /* prediction    – burnt umber*/
+  --c4l:       #fdf0e6;
+  --radius:    10px;
+  --shadow:    0 2px 16px rgba(0,0,0,0.07);
+}
+
+/* ── Dark-mode toggle ─────────────────────────────────────────────────── */
+body.dark {
+  --bg:      #111318;
+  --surface: #1c1f28;
+  --ink:     #eceae4;
+  --ink2:    #8b8880;
+  --rule:    #2c2f3a;
+  --c1l:     #152640;
+  --c2l:     #2a1840;
+  --c3l:     #0e2e22;
+  --c4l:     #2d1800;
+}
+
+html { scroll-behavior: smooth; }
+
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: 'DM Mono', monospace;
+  font-size: 13px;
+  line-height: 1.5;
+  min-height: 100vh;
+  transition: background 0.3s, color 0.3s;
+}
+
+/* ── Top bar ──────────────────────────────────────────────────────────── */
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background: var(--surface);
+  border-bottom: 1px solid var(--rule);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 28px;
+  height: 52px;
+  box-shadow: 0 1px 8px rgba(0,0,0,0.06);
+}
+.topbar-left {
+  display: flex;
+  align-items: baseline;
+  gap: 14px;
+}
+.topbar-module {
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--c1);
+  font-weight: 500;
+}
+.topbar-title {
+  font-family: 'Playfair Display', serif;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--ink);
+}
+.topbar-right { display: flex; gap: 10px; align-items: center; }
+
+.btn-sm {
+  border: 1px solid var(--rule);
+  background: var(--bg);
+  color: var(--ink2);
+  border-radius: 6px;
+  padding: 5px 12px;
+  font-family: 'DM Mono', monospace;
+  font-size: 11px;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+.btn-sm:hover { background: var(--rule); border-color: var(--ink2); }
+
+/* ── Main layout ──────────────────────────────────────────────────────── */
+.layout {
+  display: grid;
+  grid-template-columns: 1fr 320px;
+  gap: 0;
+  min-height: calc(100vh - 52px);
+}
+
+/* ── Sidebar ──────────────────────────────────────────────────────────── */
+.sidebar {
+  border-right: 1px solid var(--rule);
+  padding: 28px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  background: var(--surface);
+}
+.sidebar-section { }
+.sidebar-label {
+  font-size: 9px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--ink2);
+  margin-bottom: 8px;
+}
+
+.input-area {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+textarea#inputText {
+  width: 100%;
+  background: var(--bg);
+  border: 1.5px solid var(--rule);
+  border-radius: var(--radius);
+  padding: 10px 12px;
+  font-family: 'DM Mono', monospace;
+  font-size: 12px;
+  color: var(--ink);
+  resize: vertical;
+  min-height: 64px;
+  outline: none;
+  transition: border-color 0.2s;
+}
+textarea#inputText:focus { border-color: var(--c1); }
+
+.run-btn {
+  background: var(--c1);
+  color: #fff;
+  border: none;
+  border-radius: var(--radius);
+  padding: 10px;
+  font-family: 'DM Mono', monospace;
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+  transition: opacity 0.15s, transform 0.1s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+.run-btn:hover { opacity: 0.85; }
+.run-btn:active { transform: scale(0.97); }
+
+/* Example phrases */
+.examples {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.example-chip {
+  background: var(--bg);
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  padding: 5px 9px;
+  font-size: 11px;
+  color: var(--ink2);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.example-chip:hover { background: var(--c1l); color: var(--c1); border-color: var(--c1); }
+
+/* Temperature */
+.temp-control {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.temp-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+input[type=range] {
+  -webkit-appearance: none;
+  appearance: none;
+  flex: 1;
+  height: 5px;
+  background: var(--rule);
+  border-radius: 3px;
+  outline: none;
+}
+input[type=range]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 16px; height: 16px;
+  border-radius: 50%;
+  background: var(--c4);
+  cursor: pointer;
+  border: 2px solid var(--surface);
+  box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+}
+.temp-val {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--c4);
+  min-width: 30px;
+}
+.temp-hint {
+  display: flex;
+  justify-content: space-between;
+  font-size: 9px;
+  color: var(--ink2);
+  letter-spacing: 0.04em;
+}
+
+/* Step nav */
+.step-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.step-nav-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 10px;
+  border-radius: 7px;
+  cursor: pointer;
+  transition: background 0.15s;
+  text-decoration: none;
+  color: var(--ink2);
+}
+.step-nav-item:hover { background: var(--bg); }
+.step-dot {
+  width: 10px; height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.step-nav-item span { font-size: 11px; }
+
+/* Note */
+.sidebar-note {
+  background: var(--c4l);
+  border-left: 3px solid var(--c4);
+  border-radius: 0 6px 6px 0;
+  padding: 10px 12px;
+  font-size: 10px;
+  line-height: 1.6;
+  color: var(--ink2);
+}
+.sidebar-note strong { color: var(--ink); }
+
+/* ── Main content ─────────────────────────────────────────────────────── */
+.main {
+  padding: 32px 36px;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  overflow: hidden;
+}
+
+/* Stage card */
+.stage-card {
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-radius: 14px;
+  box-shadow: var(--shadow);
+  overflow: hidden;
+  opacity: 0;
+  transform: translateY(12px);
+  animation: riseIn 0.5s ease forwards;
+}
+.stage-card + .stage-card { margin-top: 16px; }
+.stage-card:nth-child(1) { animation-delay: 0.05s; }
+.stage-card:nth-child(2) { animation-delay: 0.15s; }
+.stage-card:nth-child(3) { animation-delay: 0.25s; }
+.stage-card:nth-child(4) { animation-delay: 0.35s; }
+
+.stage-header-bar {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--rule);
+}
+.stage-num-badge {
+  width: 26px; height: 26px;
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 11px;
+  font-weight: 500;
+  flex-shrink: 0;
+}
+.stage-card-title {
+  font-family: 'Playfair Display', serif;
+  font-size: 17px;
+  font-weight: 700;
+  flex: 1;
+}
+.stage-tag {
+  font-size: 9px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  padding: 3px 8px;
+  border-radius: 20px;
+  font-weight: 500;
+}
+
+.stage-body {
+  padding: 20px;
+}
+.stage-desc {
+  font-size: 11px;
+  color: var(--ink2);
+  line-height: 1.7;
+  margin-bottom: 16px;
+  max-width: 680px;
+}
+
+/* ── Stage 1 tokens ───────────────────────────────────────────────────── */
+.tokens-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  min-height: 50px;
+  align-items: flex-end;
+}
+.token-unit {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  animation: popIn 0.25s ease forwards;
+  opacity: 0;
+}
+.token-chip {
+  background: var(--c1l);
+  color: var(--c1);
+  border: 1.5px solid var(--c1);
+  border-radius: 7px;
+  padding: 6px 13px;
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+  transition: transform 0.15s, box-shadow 0.15s;
+}
+.token-chip:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 4px 12px rgba(26,79,138,0.2);
+}
+.token-id {
+  font-size: 9px;
+  color: var(--ink2);
+  letter-spacing: 0.04em;
+}
+
+/* ── Stage 2 embeddings ───────────────────────────────────────────────── */
+.embed-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.embed-card {
+  background: var(--c2l);
+  border: 1px solid rgba(123,63,160,0.2);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+  min-width: 110px;
+  animation: popIn 0.25s ease forwards;
+  opacity: 0;
+}
+.embed-word {
+  font-size: 12px;
+  color: var(--c2);
+  font-weight: 500;
+  margin-bottom: 10px;
+}
+.embed-bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  height: 44px;
+}
+.ebar {
+  flex: 1;
+  border-radius: 2px 2px 0 0;
+  background: var(--c2);
+  opacity: 0.65;
+  transition: height 0.5s ease;
+  min-width: 5px;
+}
+.embed-dim {
+  font-size: 9px;
+  color: var(--ink2);
+  margin-top: 6px;
+  text-align: center;
+}
+
+/* ── Stage 3 attention ────────────────────────────────────────────────── */
+.attn-container { overflow-x: auto; }
+.attn-col-labels {
+  display: flex;
+  padding-left: 90px;
+  gap: 3px;
+  margin-bottom: 3px;
+}
+.attn-col-label {
+  font-size: 9px;
+  color: var(--ink2);
+  text-align: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.attn-grid { display: flex; flex-direction: column; gap: 3px; }
+.attn-row-wrap { display: flex; align-items: center; gap: 3px; }
+.attn-row-label {
+  font-size: 10px;
+  color: var(--ink2);
+  width: 88px;
+  text-align: right;
+  padding-right: 8px;
+  flex-shrink: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.attn-cell {
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 9px;
+  font-weight: 500;
+  cursor: default;
+  transition: transform 0.1s;
+  flex-shrink: 0;
+}
+.attn-cell:hover { transform: scale(1.12); z-index: 2; }
+.attn-masked {
+  border-radius: 4px;
+  flex-shrink: 0;
+  opacity: 0.2;
+  background: var(--rule) !important;
+}
+
+/* ── Stage 4 prediction ───────────────────────────────────────────────── */
+.prediction-area {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.pred-context {
+  font-size: 13px;
+  color: var(--ink2);
+  letter-spacing: 0.02em;
+}
+.pred-context .pred-highlight {
+  display: inline-block;
+  background: var(--c4l);
+  border: 1.5px solid var(--c4);
+  border-radius: 7px;
+  padding: 4px 12px;
+  color: var(--c4);
+  font-weight: 500;
+  margin-left: 8px;
+  animation: glow 2s ease infinite;
+}
+.prob-list { display: flex; flex-direction: column; gap: 7px; }
+.prob-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  animation: popIn 0.2s ease forwards;
+  opacity: 0;
+}
+.prob-word {
+  width: 110px;
+  font-size: 12px;
+  text-align: right;
+  flex-shrink: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.prob-word.top { color: var(--c4); font-weight: 500; }
+.prob-track {
+  flex: 1;
+  height: 10px;
+  background: var(--rule);
+  border-radius: 5px;
+  overflow: hidden;
+}
+.prob-fill {
+  height: 100%;
+  border-radius: 5px;
+  background: var(--c4);
+  transition: width 0.7s cubic-bezier(0.22,1,0.36,1);
+}
+.prob-fill.dim { opacity: 0.35; }
+.prob-pct {
+  width: 36px;
+  font-size: 11px;
+  color: var(--c4);
+}
+
+/* ── Animations ───────────────────────────────────────────────────────── */
+@keyframes riseIn {
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes popIn {
+  from { opacity: 0; transform: scale(0.88); }
+  to   { opacity: 1; transform: scale(1); }
+}
+@keyframes glow {
+  0%,100% { box-shadow: 0 0 0 0 rgba(184,76,0,0); }
+  50%      { box-shadow: 0 0 0 6px rgba(184,76,0,0.12); }
+}
+
+/* ── Responsive / projected screen ───────────────────────────────────── */
+@media (max-width: 900px) {
+  .layout { grid-template-columns: 1fr; }
+  .sidebar { border-right: none; border-bottom: 1px solid var(--rule); padding: 20px; flex-direction: row; flex-wrap: wrap; gap: 16px; }
+  .main { padding: 20px; }
+}
+
+/* Presenter mode: enlarge everything */
+body.presenter {
+  font-size: 15px;
+}
+body.presenter .stage-card-title { font-size: 20px; }
+body.presenter .token-chip { font-size: 16px; padding: 8px 16px; }
+body.presenter .stage-desc { font-size: 13px; }
+body.presenter .attn-cell { font-size: 10px; }
+body.presenter .prob-word { font-size: 14px; width: 130px; }
+body.presenter .prob-track { height: 13px; }
+</style>
+</head>
+<body>
+
+<!-- ── Top bar ─────────────────────────────────────────────────────────── -->
+<div class="topbar">
+  <div class="topbar-left">
+    <span class="topbar-module">7MARK018W · Session 6</span>
+    <span class="topbar-title">Tokenisation – Embedding – Attention Pipeline</span>
+  </div>
+  <div class="topbar-right">
+    <button class="btn-sm" onclick="togglePresenter()" id="presenterBtn">⛶ Presenter mode</button>
+    <button class="btn-sm" onclick="toggleDark()" id="darkBtn">◐ Dark</button>
+  </div>
+</div>
+
+<!-- ── Layout ──────────────────────────────────────────────────────────── -->
+<div class="layout">
+
+  <!-- Sidebar -->
+  <div class="sidebar">
+
+    <div class="sidebar-section">
+      <div class="sidebar-label">Your input sentence</div>
+      <div class="input-area">
+        <textarea id="inputText" rows="3">Boots recommends skincare products</textarea>
+        <button class="run-btn" onclick="runPipeline()">
+          <span>▶</span> Run Pipeline
+        </button>
+      </div>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="sidebar-label">Try these examples</div>
+      <div class="examples">
+        <div class="example-chip" onclick="setInput('Boots recommends skincare products')">Boots recommends skincare products</div>
+        <div class="example-chip" onclick="setInput('AI personalises recommendations')">AI personalises recommendations</div>
+        <div class="example-chip" onclick="setInput('Consumer trust affects purchase intention')">Consumer trust affects purchase intention</div>
+        <div class="example-chip" onclick="setInput('Marketing analytics generates insights')">Marketing analytics generates insights</div>
+        <div class="example-chip" onclick="setInput('Sustainability matters to consumers')">Sustainability matters to consumers</div>
+      </div>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="sidebar-label">Temperature</div>
+      <div class="temp-control">
+        <div class="temp-row">
+          <input type="range" id="tempSlider" min="0.1" max="2.0" step="0.1" value="0.7"
+                 oninput="onTempChange(this.value)">
+          <span class="temp-val" id="tempVal">0.7</span>
+        </div>
+        <div class="temp-hint">
+          <span>← Deterministic (0.1)</span>
+          <span>Creative (2.0) →</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="sidebar-label">Jump to stage</div>
+      <div class="step-nav">
+        <a href="#stage1" class="step-nav-item">
+          <div class="step-dot" style="background:var(--c1)"></div>
+          <span>01 · Tokenisation</span>
+        </a>
+        <a href="#stage2" class="step-nav-item">
+          <div class="step-dot" style="background:var(--c2)"></div>
+          <span>02 · Embedding</span>
+        </a>
+        <a href="#stage3" class="step-nav-item">
+          <div class="step-dot" style="background:var(--c3)"></div>
+          <span>03 · Self-Attention</span>
+        </a>
+        <a href="#stage4" class="step-nav-item">
+          <div class="step-dot" style="background:var(--c4)"></div>
+          <span>04 · Next-Token Prediction</span>
+        </a>
+      </div>
+    </div>
+
+    <div class="sidebar-note">
+      <strong>Reproducibility note (Blanchard et al., 2025):</strong><br>
+      Because output is probabilistic, always log: model name, model version, temperature, and exact prompt. Lower temperature → more reproducible. Record all in your GenAI Session Log.
+    </div>
+
+  </div><!-- /sidebar -->
+
+  <!-- Main -->
+  <div class="main">
+
+    <!-- Stage 1 -->
+    <div class="stage-card" id="stage1">
+      <div class="stage-header-bar">
+        <div class="stage-num-badge" style="background:var(--c1l);color:var(--c1)">01</div>
+        <div class="stage-card-title" style="color:var(--c1)">Tokenisation</div>
+        <div class="stage-tag" style="background:var(--c1l);color:var(--c1)">BPE sub-word splitting</div>
+      </div>
+      <div class="stage-body">
+        <div class="stage-desc">
+          Text is split into <strong>tokens</strong> — sub-word units (whole words, word fragments, or punctuation). Each token is assigned a unique integer ID from the model's vocabulary (typically 30k–100k entries). Note how long marketing terms often split into two or more tokens.
+        </div>
+        <div class="tokens-row" id="tokensDisplay"></div>
+      </div>
+    </div>
+
+    <!-- Stage 2 -->
+    <div class="stage-card" id="stage2">
+      <div class="stage-header-bar">
+        <div class="stage-num-badge" style="background:var(--c2l);color:var(--c2)">02</div>
+        <div class="stage-card-title" style="color:var(--c2)">Embedding</div>
+        <div class="stage-tag" style="background:var(--c2l);color:var(--c2)">High-dimensional vector space</div>
+      </div>
+      <div class="stage-body">
+        <div class="stage-desc">
+          Each token ID is mapped to a vector — typically 768–4096 numbers. Semantically related tokens occupy nearby positions. The bars show a <em>12-dimension slice</em>; real embeddings have hundreds of dimensions per token.
+        </div>
+        <div class="embed-grid" id="embedDisplay"></div>
+      </div>
+    </div>
+
+    <!-- Stage 3 -->
+    <div class="stage-card" id="stage3">
+      <div class="stage-header-bar">
+        <div class="stage-num-badge" style="background:var(--c3l);color:var(--c3)">03</div>
+        <div class="stage-card-title" style="color:var(--c3)">Self-Attention</div>
+        <div class="stage-tag" style="background:var(--c3l);color:var(--c3)">Contextual weighting</div>
+      </div>
+      <div class="stage-body">
+        <div class="stage-desc">
+          Each token <em>attends</em> to every preceding token with a learned weight (0 → 1). Darker cells = stronger influence. Future tokens are masked (—) — the model cannot "see ahead". Hover a cell to read the exact weight.
+        </div>
+        <div class="attn-container">
+          <div class="attn-col-labels" id="attnColLabels"></div>
+          <div class="attn-grid" id="attnDisplay"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Stage 4 -->
+    <div class="stage-card" id="stage4">
+      <div class="stage-header-bar">
+        <div class="stage-num-badge" style="background:var(--c4l);color:var(--c4)">04</div>
+        <div class="stage-card-title" style="color:var(--c4)">Next-Token Prediction</div>
+        <div class="stage-tag" style="background:var(--c4l);color:var(--c4)">Softmax probability distribution</div>
+      </div>
+      <div class="stage-body">
+        <div class="stage-desc">
+          After attention, a feed-forward network and softmax layer produce a probability over the entire vocabulary. The model <strong>samples</strong> from this distribution — controlled by temperature. Drag the slider to see how temperature reshapes the distribution.
+        </div>
+        <div class="prediction-area">
+          <div id="predContext"></div>
+          <div class="prob-list" id="probDisplay"></div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /main -->
+</div><!-- /layout -->
+
+<script>
+/* ── Helpers ──────────────────────────────────────────────────────── */
+function esc(s){ return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+function seeded(n){
+  let s = (Math.abs(n) % 2147483647) || 1;
+  return ()=>{ s=(s*16807)%2147483647; return (s-1)/2147483646; };
+}
+
+/* ── Tokeniser (heuristic BPE demo) ──────────────────────────────── */
+const SPLITS = {
+  'recommends':['recommend','s'], 'recommendations':['recommend','ations'],
+  'recommendation':['recommend','ation'], 'skincare':['skin','care'],
+  'personalised':['personal','ised'], 'personalisation':['personal','isation'],
+  'personalization':['personal','ization'], 'personalises':['personal','ises'],
+  'personalizes':['personal','izes'], 'sustainability':['sustain','ability'],
+  'consumers':['consumer','s'], 'products':['product','s'],
+  'generates':['generate','s'], 'generated':['generat','ed'],
+  'marketing':['market','ing'], 'analytics':['analyt','ics'],
+  'purchase':['purch','ase'], 'intention':['intent','ion'],
+  'affects':['affect','s'], 'insights':['insight','s'],
+  'matters':['matter','s'], 'influences':['influence','s'],
+};
+
+function tokenise(text){
+  const words = text.trim().split(/(\s+|[^a-zA-Z0-9']+)/).filter(w=>w.trim());
+  const tokens=[]; let id=1000;
+  words.forEach(w=>{
+    const lower=w.toLowerCase();
+    if(SPLITS[lower]){ SPLITS[lower].forEach(p=>tokens.push({text:p,id:id++})); }
+    else { tokens.push({text:w,id:id++}); }
+  });
+  return tokens.slice(0,9);
+}
+
+/* ── Stage 1 ──────────────────────────────────────────────────────── */
+function renderTokens(tokens){
+  const el=document.getElementById('tokensDisplay');
+  el.innerHTML='';
+  tokens.forEach((t,i)=>{
+    const d=document.createElement('div');
+    d.className='token-unit';
+    d.style.animationDelay=(i*0.06)+'s';
+    d.innerHTML=`<div class="token-chip">${esc(t.text)}</div><div class="token-id">id·${t.id}</div>`;
+    el.appendChild(d);
+  });
+}
+
+/* ── Stage 2 ──────────────────────────────────────────────────────── */
+function renderEmbeddings(tokens){
+  const el=document.getElementById('embedDisplay');
+  el.innerHTML='';
+  tokens.forEach((t,i)=>{
+    const rng=seeded(t.id*31+i*7);
+    const bars=Array.from({length:12},()=>Math.round(rng()*38+6));
+    const maxH=Math.max(...bars);
+    const card=document.createElement('div');
+    card.className='embed-card';
+    card.style.animationDelay=(i*0.06)+'s';
+    card.innerHTML=`
+      <div class="embed-word">${esc(t.text)}</div>
+      <div class="embed-bars">
+        ${bars.map(h=>`<div class="ebar" style="height:${Math.round(h/maxH*40)+4}px"></div>`).join('')}
+      </div>
+      <div class="embed-dim">dim 0–11 of ~768</div>`;
+    el.appendChild(card);
+  });
+}
+
+/* ── Stage 3 ──────────────────────────────────────────────────────── */
+function renderAttention(tokens){
+  const n=tokens.length;
+  const seed=tokens.reduce((a,t)=>a+t.id,0);
+  const rng=seeded(seed);
+
+  // Build a causal attention matrix with realistic structure
+  const mat=[];
+  for(let i=0;i<n;i++){
+    const raw=[];
+    for(let j=0;j<=i;j++){
+      raw.push(j===i ? rng()*0.25+0.35 : rng()*0.2+0.04);
+    }
+    const s=raw.reduce((a,b)=>a+b,0);
+    mat.push(raw.map(v=>v/s));
+  }
+
+  // Cell size adapts to token count
+  const cellSize = Math.max(28, Math.min(40, Math.floor(560/(n+3))));
+
+  // Col labels
+  const cl=document.getElementById('attnColLabels');
+  cl.style.paddingLeft='90px';
+  cl.innerHTML=tokens.map(t=>`<div class="attn-col-label" style="width:${cellSize}px">${esc(t.text.slice(0,5))}</div>`).join('');
+
+  const grid=document.getElementById('attnDisplay');
+  grid.innerHTML='';
+  mat.forEach((row,i)=>{
+    const rowEl=document.createElement('div');
+    rowEl.className='attn-row-wrap';
+    rowEl.innerHTML=`<div class="attn-row-label">${esc(tokens[i].text)}</div>`;
+    // Active cells
+    row.forEach((v,j)=>{
+      const cell=document.createElement('div');
+      cell.className='attn-cell';
+      cell.style.width=cellSize+'px';
+      cell.style.height=cellSize+'px';
+      const alpha=(v*1.4).toFixed(2);
+      cell.style.background=`rgba(26,122,85,${alpha})`;
+      cell.style.color=v>0.4?'#fff':'#2d6b50';
+      cell.textContent=v.toFixed(2);
+      cell.title=`${tokens[i].text} → ${tokens[j].text}: ${v.toFixed(3)}`;
+      rowEl.appendChild(cell);
+    });
+    // Masked
+    for(let j=row.length;j<n;j++){
+      const cell=document.createElement('div');
+      cell.className='attn-masked';
+      cell.style.width=cellSize+'px';
+      cell.style.height=cellSize+'px';
+      cell.style.borderRadius='4px';
+      rowEl.appendChild(cell);
+    }
+    grid.appendChild(rowEl);
+  });
+}
+
+/* ── Stage 4 ──────────────────────────────────────────────────────── */
+const CANDIDATES=[
+  [['for',34],['at',20],['from',15],['in',12],['online',9],['daily',6],['using',4]],
+  [['customers',30],['shoppers',22],['users',18],['consumers',14],['people',9],['clients',5],['brands',2]],
+  [['based',26],['tailored',22],['powered',18],['driven',14],['personalised',10],['curated',6],['generated',4]],
+  [['on',32],['using',20],['by',18],['with',14],['through',8],['via',5],['from',3]],
+  [['AI',30],['data',25],['machine',17],['consumer',13],['user',9],['advanced',4],['deep',2]],
+  [['insights',28],['trust',22],['perception',18],['attitudes',14],['loyalty',10],['intent',5],['behaviour',3]],
+];
+
+function applyTemp(rawProbs, temp){
+  const scaled=rawProbs.map(([w,p])=>[w, Math.pow(p/100, 1/temp)]);
+  const sum=scaled.reduce((s,[,p])=>s+p,0);
+  return scaled.map(([w,p])=>[w,p/sum]).sort((a,b)=>b[1]-a[1]);
+}
+
+function renderPrediction(tokens, temp){
+  const idx=tokens.length % CANDIDATES.length;
+  const probs=applyTemp(CANDIDATES[idx], temp);
+  const best=probs[0][0];
+  const ctx=tokens.map(t=>t.text).join(' ');
+
+  document.getElementById('predContext').innerHTML=
+    `<div class="pred-context">${esc(ctx)} <span class="pred-highlight">${esc(best)}</span></div>`;
+
+  const pb=document.getElementById('probDisplay');
+  pb.innerHTML='';
+  probs.slice(0,6).forEach(([word,prob],i)=>{
+    const pct=Math.round(prob*100);
+    const item=document.createElement('div');
+    item.className='prob-item';
+    item.style.animationDelay=(i*0.07)+'s';
+    item.innerHTML=`
+      <div class="prob-word ${i===0?'top':''}">${esc(word)}</div>
+      <div class="prob-track"><div class="prob-fill ${i>0?'dim':''}" style="width:${pct}%"></div></div>
+      <div class="prob-pct">${pct}%</div>`;
+    pb.appendChild(item);
+  });
+}
+
+/* ── Orchestrate ──────────────────────────────────────────────────── */
+let currentTokens=[];
+
+function runPipeline(){
+  const text=document.getElementById('inputText').value||'Boots recommends skincare products';
+  const temp=parseFloat(document.getElementById('tempSlider').value);
+  currentTokens=tokenise(text);
+  renderTokens(currentTokens);
+  renderEmbeddings(currentTokens);
+  renderAttention(currentTokens);
+  renderPrediction(currentTokens, temp);
+}
+
+function onTempChange(val){
+  document.getElementById('tempVal').textContent=parseFloat(val).toFixed(1);
+  if(currentTokens.length) renderPrediction(currentTokens, parseFloat(val));
+}
+
+function setInput(txt){
+  document.getElementById('inputText').value=txt;
+  runPipeline();
+}
+
+/* ── UI toggles ───────────────────────────────────────────────────── */
+function toggleDark(){
+  document.body.classList.toggle('dark');
+  document.getElementById('darkBtn').textContent=
+    document.body.classList.contains('dark') ? '◑ Light' : '◐ Dark';
+}
+function togglePresenter(){
+  document.body.classList.toggle('presenter');
+  document.getElementById('presenterBtn').textContent=
+    document.body.classList.contains('presenter') ? '⛶ Normal mode' : '⛶ Presenter mode';
+}
+
+window.addEventListener('load',()=>setTimeout(runPipeline,400));
+</script>
+</body>
+</html>
